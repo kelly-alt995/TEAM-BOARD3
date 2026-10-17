@@ -241,6 +241,16 @@ label.ib{margin:0;font-size:inherit;letter-spacing:0;text-transform:none;color:v
 .mv{display:flex;gap:8px;margin-top:10px}
 .mvb{flex:1;background:var(--raise);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:8px 4px;font-size:12px;font-weight:700}
 .mvb:active{border-color:var(--or);color:var(--or)}
+.mh{flex-wrap:wrap}
+.mi{flex:1 1 150px;min-width:0}
+.mi h3{overflow-wrap:anywhere;line-height:1.15}
+.macts{flex:0 0 auto;flex-wrap:wrap;max-width:100%}
+@media (max-width:640px){
+  .mh{gap:12px}
+  .mp{width:76px;height:76px}
+  .mi h3{font-size:19px;letter-spacing:.06em}
+  .macts{flex-basis:100%;order:3;gap:8px}
+}
 </style>
 </head>
 <body>
