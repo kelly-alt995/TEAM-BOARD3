@@ -236,6 +236,11 @@ label.ib{margin:0;font-size:inherit;letter-spacing:0;text-transform:none;color:v
   .lgc{padding:22px}
   .acts{flex-wrap:wrap}
 }
+.grip{display:inline-flex;touch-action:none;color:var(--muted);padding:12px 8px;margin:-12px -8px -12px 4px;cursor:grab}
+.top>span:nth-child(2){margin-left:auto}
+.mv{display:flex;gap:8px;margin-top:10px}
+.mvb{flex:1;background:var(--raise);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:8px 4px;font-size:12px;font-weight:700}
+.mvb:active{border-color:var(--or);color:var(--or)}
 </style>
 </head>
 <body>
@@ -278,7 +283,8 @@ const ICON={
  camera:'<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3Z"/><circle cx="12" cy="13" r="3"/>',
  x:'<path d="M18 6 6 18M6 6l12 12"/>',
  send:'<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
- left:'<path d="m15 18-6-6 6-6"/>',right:'<path d="m9 18 6-6-6-6"/>',down:'<path d="m6 9 6 6 6-6"/>',up:'<path d="m18 15-6-6-6 6"/>'};
+ left:'<path d="m15 18-6-6 6-6"/>',right:'<path d="m9 18 6-6-6-6"/>',down:'<path d="m6 9 6 6 6-6"/>',up:'<path d="m18 15-6-6-6 6"/>',
+ grip:'<circle cx="9" cy="5" r="1.2"/><circle cx="15" cy="5" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="19" r="1.2"/><circle cx="15" cy="19" r="1.2"/>'};
 const ic=(n,z=19)=>`<svg viewBox="0 0 24 24" width="${z}" height="${z}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 const ib=(id,icon,tip,cls="",extra="",badge=0)=>`<button class="ib ${cls}" ${id?`id="${id}"`:""} data-tip="${esc(tip)}" aria-label="${esc(tip)}" ${extra}>${ic(icon,cls.includes("sm")?15:cls.includes("big")?22:19)}${badge?`<b class="bd">${badge}</b>`:""}</button>`;
 function initIcons(){
@@ -347,6 +353,7 @@ const prev={};
 function count(){document.querySelectorAll("[data-n]").forEach(el=>{const k=el.dataset.k,to=+el.dataset.n,from=prev[k]??0;prev[k]=to;const t0=performance.now();(function f(t){const p=Math.min(1,(t-t0)/600);el.textContent=Math.round(from+(to-from)*p);if(p<1)requestAnimationFrame(f)})(t0)})}
 function syncTeam(){const gone=new Set(S.members.filter(m=>m.removed).map(m=>m.id));const extra=S.members.map(m=>m.id).filter(id=>id&&!BASE.includes(id)&&!gone.has(id)).sort((a,b)=>a.localeCompare(b));TEAM.length=0;TEAM.push(...BASE.filter(n=>!gone.has(n)),...extra)}
 function render(){
+  if(window.__dragging)return;
   syncTeam();
   const ps=[...S.projects].sort((a,b)=>(a.created||0)-(b.created||0));
   if(!ps.find(p=>p.id===cur))cur=ps[0]?.id||null;
@@ -450,11 +457,12 @@ $("tabL").onclick=()=>$("tabs").scrollBy({left:-Math.max(160,$("tabs").clientWid
 $("tabR").onclick=()=>$("tabs").scrollBy({left:Math.max(160,$("tabs").clientWidth*.7),behavior:"smooth"});
 $("tabs").addEventListener("scroll",updTabArrows);
 addEventListener("resize",updTabArrows);
+const mvRow=t=>{const i=COLS.findIndex(c=>c[0]===t.status);return `<div class="mv">${i>0?`<button class="mvb" data-mv="${esc(t.id)}|-1">‹ ${COLS[i-1][1]}</button>`:""}${i<COLS.length-1?`<button class="mvb" data-mv="${esc(t.id)}|1">${COLS[i+1][1]} ›</button>`:""}</div>`};
 function card(t){
   const od=t.due&&t.due<new Date().toISOString().slice(0,10)&&t.status!=="done";
-  return `<div class="card" draggable="${COARSE?"false":"true"}" data-id="${esc(t.id)}"><div class="top"><span class="pr ${esc(t.priority)}"><i></i>${PRI[t.priority]||""}</span>${t.due?`<span class="${od?"od":""}">${od?"Overdue · ":""}${esc(t.due)}</span>`:""}</div>
+  return `<div class="card" draggable="${COARSE?"false":"true"}" data-id="${esc(t.id)}"><div class="top"><span class="pr ${esc(t.priority)}"><i></i>${PRI[t.priority]||""}</span>${t.due?`<span class="${od?"od":""}">${od?"Overdue · ":""}${esc(t.due)}</span>`:""}${COARSE?`<span class="grip" data-grip aria-label="Hold and drag to move">${ic("grip",20)}</span>`:""}</div>
     <b>${esc(t.title)}</b>${t.desc?`<p class="desc">${esc(t.desc)}</p>`:""}
-    ${t.assignee?`<div class="foot"><span class="pf">${face(t.assignee)}</span><em>${esc(t.assignee)}</em></div>`:""}</div>`;
+    ${t.assignee?`<div class="foot"><span class="pf">${face(t.assignee)}</span><em>${esc(t.assignee)}</em></div>`:""}${COARSE?mvRow(t):""}</div>`;
 }
 
 /* ---------- modals ---------- */
@@ -563,7 +571,10 @@ $("newProj").onclick=projectModal;
 
 $("theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light";initIcons()};
 document.addEventListener("click",e=>{
-  const t=e.target.closest("[data-m],[data-note],[data-p],#goBoard,#addT,#addMem,#renProj,#delProj,#clr,#clr2,.card");if(!t)return;
+  const t=e.target.closest("[data-mv],[data-m],[data-note],[data-p],#goBoard,#addT,#addMem,#renProj,#delProj,#clr,#clr2,.card");if(!t)return;
+  if(t.dataset.mv){const[id,d]=t.dataset.mv.split("|"),task=S.tasks.find(x=>x.id===id);
+    const i=task?COLS.findIndex(c=>c[0]===task.status)+ +d:-1;
+    if(COLS[i]){save("tasks",{...task,status:COLS[i][0]});if(COLS[i][0]==="done")burst(e.clientX,e.clientY)}return}
   if(t.dataset.m){sel=filter=t.dataset.m;render();memberModal(sel);return}
   if(t.dataset.note){sel=t.dataset.note;render();memberModal(sel,"notes");return}
   if(t.dataset.p){cur=t.dataset.p;filter="";sel=null;delArm=null;render();return}
@@ -593,34 +604,43 @@ board.addEventListener("drop",e=>{
   const t=S.tasks.find(x=>x.id===dragId);
   if(t&&t.status!==col.dataset.col){save("tasks",{...t,status:col.dataset.col});if(col.dataset.col==="done")burst(e.clientX,e.clientY)}
 });
-/* touch drag: press and hold a card, then move it to another column */
+/* touch drag: hold the grip handle on a card, then move it to another column */
 (function(){
-  let tid=null,card=null,ghost=null,drag=false,sx=0,sy=0;
-  const bd=$("board");
-  const move=(x,y)=>{if(ghost){ghost.style.left=x-ghost.offsetWidth/2+"px";ghost.style.top=y-34+"px"}};
-  const colAt=(x,y)=>{const el=document.elementFromPoint(x,y);return el&&el.closest(".col")};
-  bd.addEventListener("touchstart",e=>{
-    const c=e.target.closest(".card");if(!c||e.touches.length!==1)return;
-    card=c;const t=e.touches[0];sx=t.clientX;sy=t.clientY;drag=false;clearTimeout(tid);
-    tid=setTimeout(()=>{drag=true;card.classList.add("drag");bd.style.scrollSnapType="none";
-      ghost=card.cloneNode(true);ghost.className="card ghost";ghost.style.width=card.offsetWidth+"px";document.body.appendChild(ghost);
-      move(sx,sy);if(navigator.vibrate)navigator.vibrate(15)},350);
+  let st=null,raf=0;
+  const colAt=(x,y)=>{
+    const el=document.elementFromPoint(x,y),c=el&&el.closest(".col");if(c)return c;
+    const bd=$("board"),br=bd.getBoundingClientRect();if(y<br.top||y>br.bottom)return null;
+    let best=null,dist=1e9;
+    bd.querySelectorAll(".col").forEach(k=>{const r=k.getBoundingClientRect(),d=Math.abs(Math.max(r.left,Math.min(x,r.right))-x);if(d<dist){dist=d;best=k}});
+    return best};
+  function place(){if(st){st.ghost.style.left=st.x-st.ghost.offsetWidth/2+"px";st.ghost.style.top=st.y-30+"px"}}
+  function loop(){
+    if(!st)return;
+    const b=$("board"),w=innerWidth,E=70;
+    if(st.x<E)b.scrollLeft-=Math.ceil((E-st.x)/4);else if(st.x>w-E)b.scrollLeft+=Math.ceil((st.x-(w-E))/4);
+    if(st.y<110)window.scrollBy(0,-Math.ceil((110-st.y)/5));else if(st.y>innerHeight-110)window.scrollBy(0,Math.ceil((st.y-(innerHeight-110))/5));
+    const col=colAt(st.x,st.y);b.querySelectorAll(".col").forEach(c=>c.classList.toggle("over",c===col));
+    raf=requestAnimationFrame(loop);
+  }
+  document.addEventListener("touchstart",e=>{
+    const g=e.target.closest&&e.target.closest("[data-grip]");if(!g||e.touches.length!==1||st)return;
+    const card=g.closest(".card"),t=e.touches[0],ghost=card.cloneNode(true);
+    ghost.className="card ghost";ghost.style.width=card.offsetWidth+"px";document.body.appendChild(ghost);
+    st={id:card.dataset.id,ghost,x:t.clientX,y:t.clientY};
+    window.__dragging=true;card.classList.add("drag");$("board").style.scrollSnapType="none";
+    place();if(navigator.vibrate)navigator.vibrate(12);raf=requestAnimationFrame(loop);
   },{passive:true});
-  bd.addEventListener("touchmove",e=>{
-    const t=e.touches[0];
-    if(!drag){if(Math.abs(t.clientX-sx)>10||Math.abs(t.clientY-sy)>10)clearTimeout(tid);return}
-    e.preventDefault();move(t.clientX,t.clientY);
-    if(t.clientX<50)bd.scrollLeft-=14;else if(t.clientX>innerWidth-50)bd.scrollLeft+=14;
-    const col=colAt(t.clientX,t.clientY);bd.querySelectorAll(".col").forEach(c=>c.classList.toggle("over",c===col));
-  },{passive:false});
+  document.addEventListener("touchmove",e=>{if(!st)return;e.preventDefault();const t=e.touches[0];st.x=t.clientX;st.y=t.clientY;place()},{passive:false});
   const end=e=>{
-    clearTimeout(tid);if(!drag){card=null;return}
-    drag=false;window.__nd=true;setTimeout(()=>{window.__nd=false},500);bd.style.scrollSnapType="";
-    const t=e.changedTouches[0],col=colAt(t.clientX,t.clientY),task=S.tasks.find(x=>x.id===card.dataset.id);
-    if(ghost){ghost.remove();ghost=null}card=null;
+    if(!st)return;cancelAnimationFrame(raf);
+    const t=(e.changedTouches&&e.changedTouches[0])||{clientX:st.x,clientY:st.y};
+    const col=e.type==="touchcancel"?null:colAt(t.clientX,t.clientY),task=S.tasks.find(x=>x.id===st.id);
+    st.ghost.remove();st=null;window.__dragging=false;$("board").style.scrollSnapType="";
+    window.__nd=true;setTimeout(()=>{window.__nd=false},500);
     if(col&&task&&task.status!==col.dataset.col){save("tasks",{...task,status:col.dataset.col});if(col.dataset.col==="done")burst(t.clientX,t.clientY)}else render();
   };
-  bd.addEventListener("touchend",end);bd.addEventListener("touchcancel",end);
+  document.addEventListener("touchend",end);document.addEventListener("touchcancel",end);
+  addEventListener("blur",()=>end({type:"touchcancel"}));
 })();
 init();
 </script>
