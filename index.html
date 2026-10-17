@@ -210,6 +210,32 @@ label.ib{margin:0;font-size:inherit;letter-spacing:0;text-transform:none;color:v
 .note-i{border:1px solid var(--line);border-left:3px solid var(--or);border-radius:12px;padding:8px 12px;margin-bottom:8px;background:var(--surface);animation:fade .3s both}
 .nh{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}.nh b{color:var(--text)}.nh .ib{margin-left:auto}
 .note-i p{margin:4px 0 0;white-space:pre-wrap;word-break:break-word}
+.card{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.card.ghost{position:fixed;z-index:200;pointer-events:none;margin:0;transform:rotate(3deg) scale(1.03);box-shadow:0 20px 50px #000a;border-color:var(--or)}
+*{-webkit-tap-highlight-color:transparent}
+@media (max-width:640px){
+  body{padding-bottom:72px}
+  .nav{padding:12px 16px;gap:10px}.nr{margin-left:auto}
+  .hero{padding:20px 16px 8px;gap:18px}
+  h1{font-size:clamp(30px,9.5vw,42px)}
+  .stats{gap:26px;margin:20px 0 16px}
+  .ib{width:42px;height:42px}.ib.sm{width:32px;height:32px}.ib.big{width:48px;height:48px}
+  .pill{padding:6px 12px 6px 6px}
+  .sl{padding:10px 16px 4px}.sec{padding:6px 16px 0}
+  .slide{flex-direction:column;min-height:0}
+  .cover{flex:0 0 118px;width:100%}
+  .ring{width:88px;height:88px}.pc strong{font-size:21px}.pc small{font-size:8px}
+  .sb{padding:16px;gap:8px}.sb h3{font-size:22px;white-space:normal}
+  .board{grid-template-columns:repeat(3,minmax(84vw,1fr));gap:12px;margin:0 -16px;padding:4px 16px 16px;scroll-snap-type:x mandatory;scroll-padding-left:16px}
+  .col{scroll-snap-align:start}
+  .float{left:10px;right:10px;width:auto;max-width:none;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+  .fb{max-height:46vh}
+  .ov{padding:0;place-items:end center}
+  .modal{width:100%!important;max-height:88vh;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+  input,select,textarea{font-size:16px}
+  .lgc{padding:22px}
+  .acts{flex-wrap:wrap}
+}
 </style>
 </head>
 <body>
@@ -361,6 +387,7 @@ $("float").addEventListener("click",e=>{if(e.target.closest("#ftog")){fopen=!fop
 const GR=[["#ff6a1f","#ff3d6e"],["#7c5cff","#4cc9f0"],["#2dd4bf","#3b82f6"],["#ffb020","#ff4d5e"],["#3ddc97","#0ea5e9"]];
 function pstats(p){const ts=S.tasks.filter(t=>t.project===p.id),d=ts.filter(t=>t.status==="done").length,g=ts.filter(t=>t.status==="doing").length;return{ts,d,g,todo:ts.length-d-g,left:ts.length-d,pct:ts.length?Math.round(d/ts.length*100):0}}
 /* slider: state-driven (index + timer live in variables, never in the DOM) */
+const COARSE=matchMedia("(pointer:coarse)").matches;
 const SLIDE_MS=6500;let si=0,elapsed=0,hold=false,px=null,moved=false;
 function renderSlider(){
   const ps=[...S.projects].sort((a,b)=>(a.created||0)-(b.created||0)),el=$("slider"),n=ps.length;
@@ -425,7 +452,7 @@ $("tabs").addEventListener("scroll",updTabArrows);
 addEventListener("resize",updTabArrows);
 function card(t){
   const od=t.due&&t.due<new Date().toISOString().slice(0,10)&&t.status!=="done";
-  return `<div class="card" draggable="true" data-id="${esc(t.id)}"><div class="top"><span class="pr ${esc(t.priority)}"><i></i>${PRI[t.priority]||""}</span>${t.due?`<span class="${od?"od":""}">${od?"Overdue · ":""}${esc(t.due)}</span>`:""}</div>
+  return `<div class="card" draggable="${COARSE?"false":"true"}" data-id="${esc(t.id)}"><div class="top"><span class="pr ${esc(t.priority)}"><i></i>${PRI[t.priority]||""}</span>${t.due?`<span class="${od?"od":""}">${od?"Overdue · ":""}${esc(t.due)}</span>`:""}</div>
     <b>${esc(t.title)}</b>${t.desc?`<p class="desc">${esc(t.desc)}</p>`:""}
     ${t.assignee?`<div class="foot"><span class="pf">${face(t.assignee)}</span><em>${esc(t.assignee)}</em></div>`:""}</div>`;
 }
@@ -549,7 +576,7 @@ document.addEventListener("click",e=>{
     if(delArm===cur){const id=cur;delArm=null;S.tasks.filter(x=>x.project===id).forEach(x=>remove("tasks",x.id));remove("projects",id)}
     else{delArm=cur;render();setTimeout(()=>{delArm=null;render()},3000)}
     return}
-  if(t.classList.contains("card"))taskModal(t.dataset.id);
+  if(t.classList.contains("card")&&!window.__nd)taskModal(t.dataset.id);
 });
 document.addEventListener("change",e=>{
   if(e.target.id!=="ph"||!sel)return;const f=e.target.files[0];if(!f)return;const who=sel,im=new Image();
@@ -566,6 +593,35 @@ board.addEventListener("drop",e=>{
   const t=S.tasks.find(x=>x.id===dragId);
   if(t&&t.status!==col.dataset.col){save("tasks",{...t,status:col.dataset.col});if(col.dataset.col==="done")burst(e.clientX,e.clientY)}
 });
+/* touch drag: press and hold a card, then move it to another column */
+(function(){
+  let tid=null,card=null,ghost=null,drag=false,sx=0,sy=0;
+  const bd=$("board");
+  const move=(x,y)=>{if(ghost){ghost.style.left=x-ghost.offsetWidth/2+"px";ghost.style.top=y-34+"px"}};
+  const colAt=(x,y)=>{const el=document.elementFromPoint(x,y);return el&&el.closest(".col")};
+  bd.addEventListener("touchstart",e=>{
+    const c=e.target.closest(".card");if(!c||e.touches.length!==1)return;
+    card=c;const t=e.touches[0];sx=t.clientX;sy=t.clientY;drag=false;clearTimeout(tid);
+    tid=setTimeout(()=>{drag=true;card.classList.add("drag");bd.style.scrollSnapType="none";
+      ghost=card.cloneNode(true);ghost.className="card ghost";ghost.style.width=card.offsetWidth+"px";document.body.appendChild(ghost);
+      move(sx,sy);if(navigator.vibrate)navigator.vibrate(15)},350);
+  },{passive:true});
+  bd.addEventListener("touchmove",e=>{
+    const t=e.touches[0];
+    if(!drag){if(Math.abs(t.clientX-sx)>10||Math.abs(t.clientY-sy)>10)clearTimeout(tid);return}
+    e.preventDefault();move(t.clientX,t.clientY);
+    if(t.clientX<50)bd.scrollLeft-=14;else if(t.clientX>innerWidth-50)bd.scrollLeft+=14;
+    const col=colAt(t.clientX,t.clientY);bd.querySelectorAll(".col").forEach(c=>c.classList.toggle("over",c===col));
+  },{passive:false});
+  const end=e=>{
+    clearTimeout(tid);if(!drag){card=null;return}
+    drag=false;window.__nd=true;setTimeout(()=>{window.__nd=false},500);bd.style.scrollSnapType="";
+    const t=e.changedTouches[0],col=colAt(t.clientX,t.clientY),task=S.tasks.find(x=>x.id===card.dataset.id);
+    if(ghost){ghost.remove();ghost=null}card=null;
+    if(col&&task&&task.status!==col.dataset.col){save("tasks",{...task,status:col.dataset.col});if(col.dataset.col==="done")burst(t.clientX,t.clientY)}else render();
+  };
+  bd.addEventListener("touchend",end);bd.addEventListener("touchcancel",end);
+})();
 init();
 </script>
 </body>
