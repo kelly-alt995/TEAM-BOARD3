@@ -251,6 +251,13 @@ label.ib{margin:0;font-size:inherit;letter-spacing:0;text-transform:none;color:v
   .mi h3{font-size:19px;letter-spacing:.06em}
   .macts{flex-basis:100%;order:3;gap:8px}
 }
+.fbw{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .4s cubic-bezier(.4,0,.2,1),opacity .3s ease}
+.fbw.open{grid-template-rows:1fr;opacity:1}
+.fbi{overflow:hidden;min-height:0}
+.fh i svg{transition:transform .4s cubic-bezier(.4,0,.2,1)}
+.float.closed .fh i svg{transform:rotate(180deg)}
+.card.ghost{animation:lift .18s ease-out both}
+@keyframes lift{from{transform:none}to{transform:rotate(3deg) scale(1.03)}}
 </style>
 </head>
 <body>
@@ -393,14 +400,23 @@ function render(){
 }
 let fopen=innerWidth>900;
 const fmt=d=>new Date(d+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"});
+let lastFloat="";
+function floatUi(){const f=$("float");f.classList.toggle("closed",!fopen);const w=f.querySelector(".fbw");if(w)w.classList.toggle("open",fopen);
+  const b=$("ftog");if(b){b.dataset.tip=(fopen?"Collapse":"Expand")+" team workload";if(tt.style.opacity==1)tt.textContent=b.dataset.tip}}
 function renderFloat(){
   const today=new Date().toISOString().slice(0,10);
   const rows=TEAM.map(m=>{const mine=S.tasks.filter(t=>t.assignee===m),open=mine.filter(t=>t.status!=="done"),next=open.filter(t=>t.due).sort((a,b)=>a.due.localeCompare(b.due))[0];
     return {m,open:open.length,done:mine.length-open.length,total:mine.length,od:!!next&&next.due<today,c:{todo:mine.filter(t=>t.status==="todo").length,doing:mine.filter(t=>t.status==="doing").length,done:mine.length-open.length},tip:next?`${next.due<today?"Overdue":"Next due"} ${fmt(next.due)} · ${next.title}`:(open.length?"No due date set":"All clear")}});
-  const max=Math.max(1,...rows.map(r=>r.total));
-  $("float").innerHTML=`<button class="fh" id="ftog" data-tip="${fopen?"Collapse":"Expand"} team workload"><span>Team workload</span><em>${S.tasks.filter(t=>t.status!=="done").length} open</em><i>${ic(fopen?"down":"up",16)}</i></button>`+(fopen?`<div class="fb">${rows.map(r=>`<div class="fr" data-m="${r.m}"><span class="pf">${face(r.m)}</span><div class="fi"><div class="ft"><b>${r.m}</b><span>${r.open} open · ${r.done} done</span></div><div class="fw"><div class="fbar2"><span class="sg" style="width:${r.c.todo/max*100}%;background:#ff4d5e"></span><span class="sg" style="width:${r.c.doing/max*100}%;background:#ffc933"></span><span class="sg" style="width:${r.c.done/max*100}%;background:#3ddc97"></span></div><div class="tip ${r.od?"od":""}">${esc(r.tip)}</div></div></div></div>`).join("")}</div>`:"");
+  const max=Math.max(1,...rows.map(r=>r.total)),f=$("float");
+  if(!f.firstChild){
+    f.innerHTML=`<button class="fh" id="ftog"><span>Team workload</span><em id="fcount"></em><i>${ic("down",16)}</i></button><div class="fbw"><div class="fbi"><div class="fb" id="fbody"></div></div></div>`;
+    floatUi();
+  }
+  $("fcount").textContent=S.tasks.filter(t=>t.status!=="done").length+" open";
+  const html=rows.map(r=>`<div class="fr" data-m="${r.m}"><span class="pf">${face(r.m)}</span><div class="fi"><div class="ft"><b>${r.m}</b><span>${r.open} open · ${r.done} done</span></div><div class="fw"><div class="fbar2"><span class="sg" style="width:${r.c.todo/max*100}%;background:#ff4d5e"></span><span class="sg" style="width:${r.c.doing/max*100}%;background:#ffc933"></span><span class="sg" style="width:${r.c.done/max*100}%;background:#3ddc97"></span></div><div class="tip ${r.od?"od":""}">${esc(r.tip)}</div></div></div></div>`).join("");
+  if(html!==lastFloat){lastFloat=html;$("fbody").innerHTML=html}
 }
-$("float").addEventListener("click",e=>{if(e.target.closest("#ftog")){fopen=!fopen;renderFloat()}});
+$("float").addEventListener("click",e=>{if(e.target.closest("#ftog")){fopen=!fopen;floatUi()}});
 const GR=[["#ff6a1f","#ff3d6e"],["#7c5cff","#4cc9f0"],["#2dd4bf","#3b82f6"],["#ffb020","#ff4d5e"],["#3ddc97","#0ea5e9"]];
 function pstats(p){const ts=S.tasks.filter(t=>t.project===p.id),d=ts.filter(t=>t.status==="done").length,g=ts.filter(t=>t.status==="doing").length;return{ts,d,g,todo:ts.length-d-g,left:ts.length-d,pct:ts.length?Math.round(d/ts.length*100):0}}
 /* slider: state-driven (index + timer live in variables, never in the DOM) */
@@ -467,12 +483,11 @@ $("tabL").onclick=()=>$("tabs").scrollBy({left:-Math.max(160,$("tabs").clientWid
 $("tabR").onclick=()=>$("tabs").scrollBy({left:Math.max(160,$("tabs").clientWidth*.7),behavior:"smooth"});
 $("tabs").addEventListener("scroll",updTabArrows);
 addEventListener("resize",updTabArrows);
-const mvRow=t=>{const i=COLS.findIndex(c=>c[0]===t.status);return `<div class="mv">${i>0?`<button class="mvb" data-mv="${esc(t.id)}|-1">‹ ${COLS[i-1][1]}</button>`:""}${i<COLS.length-1?`<button class="mvb" data-mv="${esc(t.id)}|1">${COLS[i+1][1]} ›</button>`:""}</div>`};
 function card(t){
   const od=t.due&&t.due<new Date().toISOString().slice(0,10)&&t.status!=="done";
   return `<div class="card" draggable="${COARSE?"false":"true"}" data-id="${esc(t.id)}"><div class="top"><span class="pr ${esc(t.priority)}"><i></i>${PRI[t.priority]||""}</span>${t.due?`<span class="${od?"od":""}">${od?"Overdue · ":""}${esc(t.due)}</span>`:""}${COARSE?`<span class="grip" data-grip aria-label="Hold and drag to move">${ic("grip",20)}</span>`:""}</div>
     <b>${esc(t.title)}</b>${t.desc?`<p class="desc">${esc(t.desc)}</p>`:""}
-    ${t.assignee?`<div class="foot"><span class="pf">${face(t.assignee)}</span><em>${esc(t.assignee)}</em></div>`:""}${COARSE?mvRow(t):""}</div>`;
+    ${t.assignee?`<div class="foot"><span class="pf">${face(t.assignee)}</span><em>${esc(t.assignee)}</em></div>`:""}</div>`;
 }
 
 /* ---------- modals ---------- */
@@ -581,10 +596,7 @@ $("newProj").onclick=projectModal;
 
 $("theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="light"?"dark":"light";initIcons()};
 document.addEventListener("click",e=>{
-  const t=e.target.closest("[data-mv],[data-m],[data-note],[data-p],#goBoard,#addT,#addMem,#renProj,#delProj,#clr,#clr2,.card");if(!t)return;
-  if(t.dataset.mv){const[id,d]=t.dataset.mv.split("|"),task=S.tasks.find(x=>x.id===id);
-    const i=task?COLS.findIndex(c=>c[0]===task.status)+ +d:-1;
-    if(COLS[i]){save("tasks",{...task,status:COLS[i][0]});if(COLS[i][0]==="done")burst(e.clientX,e.clientY)}return}
+  const t=e.target.closest("[data-m],[data-note],[data-p],#goBoard,#addT,#addMem,#renProj,#delProj,#clr,#clr2,.card");if(!t)return;
   if(t.dataset.m){sel=filter=t.dataset.m;render();memberModal(sel);return}
   if(t.dataset.note){sel=t.dataset.note;render();memberModal(sel,"notes");return}
   if(t.dataset.p){cur=t.dataset.p;filter="";sel=null;delArm=null;render();return}
@@ -614,9 +626,9 @@ board.addEventListener("drop",e=>{
   const t=S.tasks.find(x=>x.id===dragId);
   if(t&&t.status!==col.dataset.col){save("tasks",{...t,status:col.dataset.col});if(col.dataset.col==="done")burst(e.clientX,e.clientY)}
 });
-/* touch drag: hold the grip handle on a card, then move it to another column */
+/* touch drag: press and hold a card (or grab its handle), then move it to another column */
 (function(){
-  let st=null,raf=0;
+  let st=null,pend=null,raf=0;
   const colAt=(x,y)=>{
     const el=document.elementFromPoint(x,y),c=el&&el.closest(".col");if(c)return c;
     const bd=$("board"),br=bd.getBoundingClientRect();if(y<br.top||y>br.bottom)return null;
@@ -632,16 +644,25 @@ board.addEventListener("drop",e=>{
     const col=colAt(st.x,st.y);b.querySelectorAll(".col").forEach(c=>c.classList.toggle("over",c===col));
     raf=requestAnimationFrame(loop);
   }
-  document.addEventListener("touchstart",e=>{
-    const g=e.target.closest&&e.target.closest("[data-grip]");if(!g||e.touches.length!==1||st)return;
-    const card=g.closest(".card"),t=e.touches[0],ghost=card.cloneNode(true);
-    ghost.className="card ghost";ghost.style.width=card.offsetWidth+"px";document.body.appendChild(ghost);
-    st={id:card.dataset.id,ghost,x:t.clientX,y:t.clientY};
-    window.__dragging=true;card.classList.add("drag");$("board").style.scrollSnapType="none";
+  function begin(card,x,y){
+    const ghost=card.cloneNode(true);ghost.className="card ghost";ghost.style.width=card.offsetWidth+"px";document.body.appendChild(ghost);
+    st={id:card.dataset.id,ghost,x,y};window.__dragging=true;card.classList.add("drag");$("board").style.scrollSnapType="none";
     place();if(navigator.vibrate)navigator.vibrate(12);raf=requestAnimationFrame(loop);
+  }
+  document.addEventListener("touchstart",e=>{
+    if(st||e.touches.length!==1)return;
+    const c=e.target.closest&&e.target.closest(".card");if(!c||c.classList.contains("ghost"))return;
+    const t=e.touches[0];
+    if(e.target.closest("[data-grip]")){begin(c,t.clientX,t.clientY);return}
+    pend={c,x:t.clientX,y:t.clientY,id:setTimeout(()=>{if(pend){const q=pend;pend=null;begin(q.c,q.x,q.y)}},260)};
   },{passive:true});
-  document.addEventListener("touchmove",e=>{if(!st)return;e.preventDefault();const t=e.touches[0];st.x=t.clientX;st.y=t.clientY;place()},{passive:false});
+  document.addEventListener("touchmove",e=>{
+    const t=e.touches[0];
+    if(pend){if(Math.abs(t.clientX-pend.x)>8||Math.abs(t.clientY-pend.y)>8){clearTimeout(pend.id);pend=null}return}
+    if(!st)return;e.preventDefault();st.x=t.clientX;st.y=t.clientY;place();
+  },{passive:false});
   const end=e=>{
+    if(pend){clearTimeout(pend.id);pend=null}
     if(!st)return;cancelAnimationFrame(raf);
     const t=(e.changedTouches&&e.changedTouches[0])||{clientX:st.x,clientY:st.y};
     const col=e.type==="touchcancel"?null:colAt(t.clientX,t.clientY),task=S.tasks.find(x=>x.id===st.id);
@@ -651,6 +672,7 @@ board.addEventListener("drop",e=>{
   };
   document.addEventListener("touchend",end);document.addEventListener("touchcancel",end);
   addEventListener("blur",()=>end({type:"touchcancel"}));
+  document.addEventListener("contextmenu",e=>{if(e.target.closest&&e.target.closest(".card"))e.preventDefault()});
 })();
 init();
 </script>
